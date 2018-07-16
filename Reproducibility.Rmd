@@ -2,7 +2,7 @@
 title: 'Reproducibility: Sharing is Caring'
 output: html_document
 params:
-  downloads_folder: "downloads"
+  data_folder: "downloads"
 ---
 
 ```{r setup, include=FALSE}
@@ -13,67 +13,125 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(keras)
 library(here)
+library(httr)
+library(jsonlite)
+library(tidyverse)
+
+# devtools::install_github("rstudio/tfdeploy")
+library(tfdeploy)
+
+```
+
+```{r}
+# For plotting
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("Rgraphviz")
+
+library(Rgraphviz)
+library(tidygraph)
+library(igraph)
+```
+
+# Overview
+
+Using tfdeploy to serialize your model after training provides transparency into how your model was created and lets others not only reproduce your work but potentially improve it.
+
+# MNIST MODEL
+
+In the previous example, [hello-keras](hello-keras.html), we trained a model to recognize handwriting. We saved this model and its weights in hdf5 format.
+
+```{r}
+model_dense <- load_model_hdf5("models/mnist_hdf5.h5")
+```
+
+You can also read in model weights. Weights are loaded based on the model's architecture, so it should be the same as when the weights were saved. 
+
+Note that layers that don't have weights are not taken into account, so adding or removing layers is fine as long as they don't have weights. Also note that if the by_name parameter is TRUE, weights are loaded into layers only if they share the same name. This is useful for fine-tuning or transfer-learning models where some of the layers have changed. We'll talk about naming layers later.
+
+```{r}
+load_model_weights_hdf5(model_dense, "models/mnist_weights_hdf5.h5")
+```
+
+# Improve the Model
+
+Let's use a 2d convnent instead of dense layers.
+
+```{r}
 
 ```
 
 
-# Data
 
-```{r, echo=TRUE, results='hide'}
+# Export the Model
 
-# Download the ALL data option from Kaggle and unzip it (including subdirectories)
-# save it to the downloads location specified in the parameters for this notebook
-original_dataset_dir <- "~/Downloads/kaggle_original_data"
+The next step is to export the model as a TensorFlow SavedModel using the export_savedmodel() function:
 
-base_dir <- "~/Downloads/cats_and_dogs_small"
-dir.create(base_dir)
-
-train_dir <- file.path(base_dir, "train")
-dir.create(train_dir)
-validation_dir <- file.path(base_dir, "validation")
-dir.create(validation_dir)
-test_dir <- file.path(base_dir, "test")
-dir.create(test_dir)
-
-train_cats_dir <- file.path(train_dir, "cats")
-dir.create(train_cats_dir)
-
-train_dogs_dir <- file.path(train_dir, "dogs")
-dir.create(train_dogs_dir)
-
-validation_cats_dir <- file.path(validation_dir, "cats")
-dir.create(validation_cats_dir)
-
-validation_dogs_dir <- file.path(validation_dir, "dogs")
-dir.create(validation_dogs_dir)
-
-test_cats_dir <- file.path(test_dir, "cats")
-dir.create(test_cats_dir)
-
-test_dogs_dir <- file.path(test_dir, "dogs")
-dir.create(test_dogs_dir)
-
-fnames <- paste0("cat.", 1:1000, ".jpg")
-file.copy(file.path(original_dataset_dir, fnames), 
-          file.path(train_cats_dir)) 
-
-fnames <- paste0("cat.", 1001:1500, ".jpg")
-file.copy(file.path(original_dataset_dir, fnames), 
-          file.path(validation_cats_dir))
-
-fnames <- paste0("cat.", 1501:2000, ".jpg")
-file.copy(file.path(original_dataset_dir, fnames),
-          file.path(test_cats_dir))
-
-fnames <- paste0("dog.", 1:1000, ".jpg")
-file.copy(file.path(original_dataset_dir, fnames),
-          file.path(train_dogs_dir))
-
-fnames <- paste0("dog.", 1001:1500, ".jpg")
-file.copy(file.path(original_dataset_dir, fnames),
-          file.path(validation_dogs_dir)) 
-
-fnames <- paste0("dog.", 1501:2000, ".jpg")
-file.copy(file.path(original_dataset_dir, fnames),
-          file.path(test_dogs_dir))
+```{r}
+export_savedmodel(model, "models/savedmodel")
 ```
+
+Note the message that is printed: exporting a Keras model requires setting the Keras “learning phase” to 0. In practice, this means that after calling export_savedmodel you can not continue to train models in the same R session.
+
+It is important to assign reasonable names to the the first and last layers. For example, in the model code above we named the first layer “image” and the last layer “prediction”.
+
+```{r, eval=FALSE}
+model %>%
+  layer_dense(units = 256, activation = 'relu', input_shape = c(784),
+              name = "image") %>%
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dense(units = 10, activation = 'softmax',
+              name = "prediction")
+```
+
+The layer names are reflected in the structure of REST requests and responses to and from the deployed model.
+
+You can view the graph of your model using TensorBoard with the view_savedmodel() function:
+
+```{r}
+view_savedmodel("models/savedmodel")
+```
+
+![Tensorboard PNG Export](img/tensorboard_mnist.png)
+
+
+## Serve the Model
+
+Use serve_savedmodel() to host the model locally. Once running, make an HTTP POST request:
+
+```{r eval=FALSE}
+curl_cmd <- 'curl -X POST "http://127.0.0.1:8089/predict/predict/" \ 
+  -H "accept: application/json"                       \
+  -H "Content-Type: application/json"                 \
+  -d "{ \"instances\": [ { \"disp\": [ 160 ], \"cyl\": [ 4 ] } ]}"'
+
+model_req <- GET("http://127.0.0.1:8089/predict/predict/") # req <- GET(req_url, query, accept(accept_text))
+```
+
+Each instance of new data should be formatted as a json array, and each element in the array should be a named array corresponding to the feature columns. This structure is similar to a named list in R.
+
+```{r eval=FALSE}
+# parse json
+model_json <- content(model_req, as = "text")
+
+# rectangularize
+ model_df <- fromJSON(json, flatten=TRUE)
+```
+
+
+The response is the predicted MPG:
+
+{
+  "predictions": [
+    {
+      "predictions": [
+        8.4974
+      ]
+    }
+  ]
+}
+
+
+# Using Saved Models
+
+https://tensorflow.rstudio.com/tools/tfdeploy/articles/saved_models.html
+
