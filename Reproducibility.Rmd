@@ -13,211 +13,179 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(keras)
 library(here)
+library(tidyverse)
 
 ```
+# Overview
 
+Using tfdeploy to serialize your model after training provides transparency into how your model was created and lets others not only reproduce your work but potentially improve it.
 
-# Setup
+# MNIST MODEL
 
-## Data
+We’ll use a Keras model that recognizes handwritten digits from the MNIST dataset as an example. MNIST consists of 28 x 28 grayscale images of handwritten digits like these:
 
-Get the training data (Kaggle cats and dogs images via Deep Learning with R 5.2):
-```{r, message=FALSE}
-
-system(paste(
-  "wget", "https://storage.googleapis.com/derp-learning-with-r/reproducibility/cats_and_dogs_small.zip", "&", 
-  "mv", "cats_and_dogs_small.zip", here::here(params$data_folder), "&",
-  "unzip", here::here(params$data_folder, "cats_and_dogs_small.zip")))
-
-```
-
-## Model
-```{r}
-model <- keras_model_sequential() %>% 
-  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = "relu",
-                input_shape = c(150, 150, 3)) %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_flatten() %>% 
-  layer_dense(units = 512, activation = "relu") %>% 
-  layer_dense(units = 1, activation = "sigmoid")
-```
-
-Let's take a look at how the dimensions of the feature maps change with every successive layer:
+The dataset also includes labels for each image. For example, the labels for the above images are 5, 0, 4, and 1.
 
 ```{r}
-summary(model)
+# load data
+c(c(x_train_orig, y_train_orig), c(x_test_orig, y_test_orig)) %<-% dataset_mnist()
+
+# reshape and rescale
+x_train <- array_reshape(x_train_orig, dim = c(nrow(x_train_orig), 784)) / 255
+x_test <- array_reshape(x_test_orig, dim = c(nrow(x_test_orig), 784)) / 255
+
+# one-hot encode response
+y_train <- to_categorical(y_train_orig, 10)
+y_test <- to_categorical(y_test_orig, 10)
 ```
 
-For our compilation step, we'll go with the `RMSprop` optimizer as usual. Since we ended our network with a single sigmoid unit, we will use binary crossentropy as our loss (as a reminder, check out the table in Chapter 4, section 5 for a cheatsheet on what loss function to use in various situations).
 
 ```{r}
-model %>% compile(
-  loss = "binary_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 1e-4),
-  metrics = c("acc")
-)
+# grab a random index from the "batch" index (the first axis)
+digit_index <- sample.int(length(x_train_orig[1,,]), 1) 
+digit <- x_train_orig[digit_index,,] # <- one slice of tensor please :)
+
+plot(as.raster(digit, max=255))
+title(paste("index", digit_index))
 ```
 
-## Train
+Here’s the complete source code for the model:
 
-Our model shold never see the exact same picture twice. This helps the model get exposed to more aspects of the data and generalize better.
+```{r, warning=FALSE}
 
-In Keras, this can be done by configuring a number of random transformations to be performed on the images read by an `image_data_generator()`.
+# define and compile model
+model <- keras_model_sequential()
+model %>%
+  layer_dense(units = 256, activation = 'relu', input_shape = c(784),
+              name = "image") %>%
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dense(units = 10, activation = 'softmax',
+              name = "prediction") %>%
+  compile(
+    loss = 'categorical_crossentropy',
+    optimizer = optimizer_rmsprop(),
+    metrics = c('accuracy')
+  )
 
-```{r}
-datagen <- image_data_generator(
-  rescale = 1/255,
-  rotation_range = 40,
-  width_shift_range = 0.2,
-  height_shift_range = 0.2,
-  shear_range = 0.2,
-  zoom_range = 0.2,
-  horizontal_flip = TRUE,
-  fill_mode = "nearest"
+# train model
+history <- model %>% fit(
+  x_train, y_train,
+  epochs = 35, batch_size = 128,
+  validation_split = 0.2
 )
 ```
-
-These are just a few of the options available (for more, see the Keras documentation). Let's quickly go over what we just wrote:
-
-* `rotation_range` is a value in degrees (0-180), a range within which to randomly rotate pictures.
-* `width_shift` and `height_shift` are ranges (as a fraction of total width or height) within which to randomly translate pictures 
-vertically or horizontally.
-* `shear_range` is for randomly applying shearing transformations.
-* `zoom_range` is for randomly zooming inside pictures.
-* `horizontal_flip` is for randomly flipping half of the images horizontally -- relevant when there are no assumptions of horizontal 
-asymmetry (e.g. real-world pictures).
-* `fill_mode` is the strategy used for filling in newly created pixels, which can appear after a rotation or a width/height shift.
-
-To further fight overfitting, we will also add a dropout layer to our model, right before the densely-connected classifier:
-
-```{r}
-model <- keras_model_sequential() %>% 
-  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = "relu",
-                input_shape = c(150, 150, 3)) %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_flatten() %>% 
-  layer_dropout(rate = 0.5) %>% 
-  layer_dense(units = 512, activation = "relu") %>% 
-  layer_dense(units = 1, activation = "sigmoid")  
-  
-model %>% compile(
-  loss = "binary_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 1e-4),
-  metrics = c("acc")
-)
-```
-
-Train our network using data augmentation and dropout:
-
-```{r}
-
-test_datagen <- image_data_generator(rescale = 1/255)
-
-train_generator <- flow_images_from_directory(
-  train_dir,
-  datagen,
-  target_size = c(150, 150),
-  batch_size = 32,
-  class_mode = "binary"
-)
-
-validation_generator <- flow_images_from_directory(
-  validation_dir,
-  test_datagen,
-  target_size = c(150, 150),
-  batch_size = 32,
-  class_mode = "binary"
-)
-
-history <- model %>% fit_generator(
-  train_generator,
-  steps_per_epoch = 100,
-  epochs = 100,
-  validation_data = validation_generator,
-  validation_steps = 50
-)
-```
-
-Plot our results:
 
 ```{r}
 plot(history)
 ```
 
-# Serialize Model
 
-There are many ways to save your model. It's usually a good idea to save it after training for evaluation. You can also include it in your Github repo where you've saved your research notebook!
+In R, it is easy to make predictions using the the trained model and R’s predict function: (TODO make this easier to read w/ a plot "likelihood of number")
 
-You can save it in human-readable form using either YAML or JSON.
-
-```{r}
-write(model_to_yaml(model), "model.yaml")
-```
-
-The human-readable options for serializing the models don't include all of the information. The serialize_model command actually calls the Keras Python library to get the data that is not immediately available within the R objects.
-
-All options are not included by default, however, such as the optimizer. You need to explicitely indicate what additional attributes you want included. When might this be useful?
+Each row represents an image, each column represents a digit from 0-9, and the values represent the model’s prediction. For example, the first image is predicted to be a 7.
 
 ```{r}
-cmp_model <- model
-write(serialize_model(cmp_model), "cmp_model.txt")
+preds <- predict(model, x_test)
+preds_df <- as.data.frame(preds)
+names(preds_df) <- c(0:9) # wasn't working in the data.frame cast for some reason
+
+predictions <- preds_df %>% 
+  mutate(digit_index = row_number()) %>%
+  gather(number, probability, 1:10)
+
+predictions_summary <- predictions %>%
+  group_by(digit_index) %>%
+  summarize(likely_number = number[which.max(probability)])
+
 ```
-
-You can also explicitely save it as HDF5
-
-```{r, eval=FALSE}
-save_model_hdf5("cats_and_dogs_small.h5")
-save_model_weights_hdf5("cats_and_dogs_small_weights.h5")
-```
-
-
-# Include External Model
-
-There are two ways to leverage a pre-trained network: *feature extraction* and *fine-tuning*. We will cover both of them. Let's start with feature extraction.
-
-## Feature extraction
-
-Feature extraction consists of using the representations learned by a previous network to extract interesting features from new samples. These features are then run through a new classifier, which is trained from scratch.
-
-As we saw previously, convnets used for image classification comprise two parts: they start with a series of pooling and convolution layers, and they end with a densely-connected classifier. The first part is called the "convolutional base" of the model. In the case of convnets, "feature extraction" will simply consist of taking the convolutional base of a previously-trained network, running the new data through it, and training a new classifier on top of the output.
-
-![swapping FC classifiers](https://s3.amazonaws.com/book.keras.io/img/ch5/swapping_fc_classifier.png)
-
-Let's instantiate the VGG16 model:
-
-```{r, echo=TRUE, results='hide'}
-library(keras)
-
-conv_base <- application_vgg16(
-  weights = "imagenet",
-  include_top = FALSE,
-  input_shape = c(150, 150, 3)
-)
-```
-
-We passed three arguments to the constructor:
-
-* `weights`, to specify which weight checkpoint to initialize the model from
-* `include_top`, which refers to including or not the densely-connected classifier on top of the network. By default, this densely-connected classifier would correspond to the 1000 classes from ImageNet. Since we intend to use our own densely-connected classifier (with only two classes, cat and dog), we don't need to include it.
-* `input_shape`, the shape of the image tensors that we will feed to the network. This argument is purely optional: if we don't pass it, then the network will be able to process inputs of any size.
-
-Here's the detail of the architecture of the VGG16 convolutional base: it's very similar to the simple convnets that you are already familiar with.
 
 ```{r}
-summary(conv_base)
+predictions_summary_sample <- sample_n(predictions_summary, 24)
+
+for (n in predictions_summary_sample$digit_index) {
+  pred_img <- x_test_orig[n,,]
+  plot(as.raster(pred_img, max=255))
+  title(paste("Predicted number for index", n, ":", predictions_summary$likely_number[n]))
+}
 ```
 
-# Cite Model
+
+## EXPORTING THE MODEL
+
+### Keras
+
+After training, the next step is to export the model as a TensorFlow SavedModel using the export_savedmodel() function:
+
+library(tfdeploy)
+export_savedmodel(model, "savedmodel")
+This will create a “savedmodel” directory that contains a saved version of your MNIST model. 
+
+Note the message that is printed: exporting a Keras model requires setting the Keras “learning phase” to 0. In practice, this means that after calling export_savedmodel you can not continue to train models in the same R session.
+
+It is important to assign reasonable names to the the first and last layers. For example, in the model code above we named the first layer “image” and the last layer “prediction”.
+
+model %>%
+  layer_dense(units = 256, activation = 'relu', input_shape = c(784),
+              name = "image") %>%
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dense(units = 10, activation = 'softmax',
+              name = "prediction")
+The layer names are reflected in the structure of REST requests and responses to and from the deployed model.
+
+You can view the graph of your model using TensorBoard with the view_savedmodel() function:
+
+view_savedmodel("savedmodel")
+
+
+
+### TFEstimators
+
+TFESTIMATORS
+Exporting a TensorFlow SavedModel from a TF Estimators model works exactly the same way as exporting a keras model, simply call export_savedmodel() on the estimator. Here is a complete example:
+
+library(tfestimators)
+
+mtcars_input_fn <- function(data, num_epochs = 1) {
+  input_fn(data,
+           features = c("disp", "cyl"),
+           response = "mpg",
+           batch_size = 32,
+           num_epochs = num_epochs)
+}
+
+cols <- feature_columns(column_numeric("disp"), column_numeric("cyl"))
+
+model <- linear_regressor(feature_columns = cols)
+
+indices <- sample(1:nrow(mtcars), size = 0.80 * nrow(mtcars))
+train <- mtcars[indices, ]
+test  <- mtcars[-indices, ]
+
+model %>% train(mtcars_input_fn(train, num_epochs = 10))
+
+export_savedmodel(model, "savedmodel")
+Generating predictions is done in the same way as with exported Keras models. First, use serve_savedmodel() to host the model locally. Once running, an HTTP POST request can be made:
+
+curl -X POST "http://127.0.0.1:8089/predict/predict/" \ 
+  -H "accept: application/json"                       \
+  -H "Content-Type: application/json"                 \
+  -d "{ \"instances\": [ { \"disp\": [ 160 ], \"cyl\": [ 4 ] } ]}"
+Each instance of new data should be formatted as a json array, and each element in the array should be a named array corresponding to the feature columns. This structure is similar to a named list in R.
+
+The response is the predicted MPG:
+
+{
+  "predictions": [
+    {
+      "predictions": [
+        8.4974
+      ]
+    }
+  ]
+}
+
+
+# Using Saved Models
+
+https://tensorflow.rstudio.com/tools/tfdeploy/articles/saved_models.html
 
