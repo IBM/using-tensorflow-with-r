@@ -13,164 +13,110 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(keras)
 library(here)
+library(httr)
+library(jsonlite)
 library(tidyverse)
 
+# devtools::install_github("rstudio/tfdeploy")
+library(tfdeploy)
+
 ```
+
+```{r}
+# For plotting
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("Rgraphviz")
+
+library(Rgraphviz)
+library(tidygraph)
+library(igraph)
+```
+
 # Overview
 
 Using tfdeploy to serialize your model after training provides transparency into how your model was created and lets others not only reproduce your work but potentially improve it.
 
 # MNIST MODEL
 
-We’ll use a Keras model that recognizes handwritten digits from the MNIST dataset as an example. MNIST consists of 28 x 28 grayscale images of handwritten digits like these:
-
-The dataset also includes labels for each image. For example, the labels for the above images are 5, 0, 4, and 1.
+In the previous example, [hello-keras](hello-keras.html), we trained a model to recognize handwriting. We saved this model and its weights in hdf5 format.
 
 ```{r}
-# load data
-c(c(x_train_orig, y_train_orig), c(x_test_orig, y_test_orig)) %<-% dataset_mnist()
-
-# reshape and rescale
-x_train <- array_reshape(x_train_orig, dim = c(nrow(x_train_orig), 784)) / 255
-x_test <- array_reshape(x_test_orig, dim = c(nrow(x_test_orig), 784)) / 255
-
-# one-hot encode response
-y_train <- to_categorical(y_train_orig, 10)
-y_test <- to_categorical(y_test_orig, 10)
+model_dense <- load_model_hdf5("models/mnist_hdf5.h5")
 ```
 
+You can also read in model weights. Weights are loaded based on the model's architecture, so it should be the same as when the weights were saved. 
+
+Note that layers that don't have weights are not taken into account, so adding or removing layers is fine as long as they don't have weights. Also note that if the by_name parameter is TRUE, weights are loaded into layers only if they share the same name. This is useful for fine-tuning or transfer-learning models where some of the layers have changed. We'll talk about naming layers later.
 
 ```{r}
-# grab a random index from the "batch" index (the first axis)
-digit_index <- sample.int(length(x_train_orig[1,,]), 1) 
-digit <- x_train_orig[digit_index,,] # <- one slice of tensor please :)
-
-plot(as.raster(digit, max=255))
-title(paste("index", digit_index))
+load_model_weights_hdf5(model_dense, "models/mnist_weights_hdf5.h5")
 ```
 
-Here’s the complete source code for the model:
+# Improve the Model
 
-```{r, warning=FALSE}
-
-# define and compile model
-model <- keras_model_sequential()
-model %>%
-  layer_dense(units = 256, activation = 'relu', input_shape = c(784),
-              name = "image") %>%
-  layer_dense(units = 128, activation = 'relu') %>%
-  layer_dense(units = 10, activation = 'softmax',
-              name = "prediction") %>%
-  compile(
-    loss = 'categorical_crossentropy',
-    optimizer = optimizer_rmsprop(),
-    metrics = c('accuracy')
-  )
-
-# train model
-history <- model %>% fit(
-  x_train, y_train,
-  epochs = 35, batch_size = 128,
-  validation_split = 0.2
-)
-```
+Let's use a 2d convnent instead of dense layers.
 
 ```{r}
-plot(history)
+
 ```
 
 
-In R, it is easy to make predictions using the the trained model and R’s predict function: (TODO make this easier to read w/ a plot "likelihood of number")
 
-Each row represents an image, each column represents a digit from 0-9, and the values represent the model’s prediction. For example, the first image is predicted to be a 7.
+# Export the Model
+
+The next step is to export the model as a TensorFlow SavedModel using the export_savedmodel() function:
 
 ```{r}
-preds <- predict(model, x_test)
-preds_df <- as.data.frame(preds)
-names(preds_df) <- c(0:9) # wasn't working in the data.frame cast for some reason
-
-predictions <- preds_df %>% 
-  mutate(digit_index = row_number()) %>%
-  gather(number, probability, 1:10)
-
-predictions_summary <- predictions %>%
-  group_by(digit_index) %>%
-  summarize(likely_number = number[which.max(probability)])
-
+export_savedmodel(model, "models/savedmodel")
 ```
-
-```{r}
-predictions_summary_sample <- sample_n(predictions_summary, 24)
-
-for (n in predictions_summary_sample$digit_index) {
-  pred_img <- x_test_orig[n,,]
-  plot(as.raster(pred_img, max=255))
-  title(paste("Predicted number for index", n, ":", predictions_summary$likely_number[n]))
-}
-```
-
-
-## EXPORTING THE MODEL
-
-### Keras
-
-After training, the next step is to export the model as a TensorFlow SavedModel using the export_savedmodel() function:
-
-library(tfdeploy)
-export_savedmodel(model, "savedmodel")
-This will create a “savedmodel” directory that contains a saved version of your MNIST model. 
 
 Note the message that is printed: exporting a Keras model requires setting the Keras “learning phase” to 0. In practice, this means that after calling export_savedmodel you can not continue to train models in the same R session.
 
 It is important to assign reasonable names to the the first and last layers. For example, in the model code above we named the first layer “image” and the last layer “prediction”.
 
+```{r, eval=FALSE}
 model %>%
   layer_dense(units = 256, activation = 'relu', input_shape = c(784),
               name = "image") %>%
   layer_dense(units = 128, activation = 'relu') %>%
   layer_dense(units = 10, activation = 'softmax',
               name = "prediction")
+```
+
 The layer names are reflected in the structure of REST requests and responses to and from the deployed model.
 
 You can view the graph of your model using TensorBoard with the view_savedmodel() function:
 
-view_savedmodel("savedmodel")
+```{r}
+view_savedmodel("models/savedmodel")
+```
+
+![Tensorboard PNG Export](img/tensorboard_mnist.png)
 
 
+## Serve the Model
 
-### TFEstimators
+Use serve_savedmodel() to host the model locally. Once running, make an HTTP POST request:
 
-TFESTIMATORS
-Exporting a TensorFlow SavedModel from a TF Estimators model works exactly the same way as exporting a keras model, simply call export_savedmodel() on the estimator. Here is a complete example:
-
-library(tfestimators)
-
-mtcars_input_fn <- function(data, num_epochs = 1) {
-  input_fn(data,
-           features = c("disp", "cyl"),
-           response = "mpg",
-           batch_size = 32,
-           num_epochs = num_epochs)
-}
-
-cols <- feature_columns(column_numeric("disp"), column_numeric("cyl"))
-
-model <- linear_regressor(feature_columns = cols)
-
-indices <- sample(1:nrow(mtcars), size = 0.80 * nrow(mtcars))
-train <- mtcars[indices, ]
-test  <- mtcars[-indices, ]
-
-model %>% train(mtcars_input_fn(train, num_epochs = 10))
-
-export_savedmodel(model, "savedmodel")
-Generating predictions is done in the same way as with exported Keras models. First, use serve_savedmodel() to host the model locally. Once running, an HTTP POST request can be made:
-
-curl -X POST "http://127.0.0.1:8089/predict/predict/" \ 
+```{r eval=FALSE}
+curl_cmd <- 'curl -X POST "http://127.0.0.1:8089/predict/predict/" \ 
   -H "accept: application/json"                       \
   -H "Content-Type: application/json"                 \
-  -d "{ \"instances\": [ { \"disp\": [ 160 ], \"cyl\": [ 4 ] } ]}"
+  -d "{ \"instances\": [ { \"disp\": [ 160 ], \"cyl\": [ 4 ] } ]}"'
+
+model_req <- GET("http://127.0.0.1:8089/predict/predict/") # req <- GET(req_url, query, accept(accept_text))
+```
+
 Each instance of new data should be formatted as a json array, and each element in the array should be a named array corresponding to the feature columns. This structure is similar to a named list in R.
+
+```{r eval=FALSE}
+# parse json
+model_json <- content(model_req, as = "text")
+
+# rectangularize
+ model_df <- fromJSON(json, flatten=TRUE)
+```
+
 
 The response is the predicted MPG:
 

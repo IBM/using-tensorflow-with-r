@@ -300,7 +300,7 @@ test_labels <- to_categorical(test_labels)
 
 ## So What Have We Got?
 
-The model we've built is a small covnet. It is a stack of alternated 2d layers with relu activation.
+The model we've built is a small convnet. It is a stack of alternated 2d layers with relu activation.
 
 By default the model will print layer metadata.
 ```{r}
