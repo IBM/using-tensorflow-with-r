@@ -1,0 +1,41 @@
+
+> library(keras)
+
+> # Data Preparation ---------------------------------------------------
+> 
+> use_session_with_seed(2)
+
+> batch_size <- 128
+
+> num_classes <- 10
+
+> # The data, shuffled and split between train and test sets
+> c(c(x_train, y_train), c(x_test, y_test)) %<-% dataset_mnist()
+
+> x_train <- array_reshape(x_train, c(nrow(x_train), 784))
+
+> x_test <- array_reshape(x_test, c(nrow(x_test), 784))
+
+> # Transform RGB values into [0,1] range
+> x_train <- x_train / 255
+
+> x_test <- x_test / 255
+
+> cat(nrow(x_train), 'train samples\n')
+60000 train samples
+
+> cat(nrow(x_test), 'test samples\n')
+10000 test samples
+
+> # Convert class vectors to binary class matrices
+> y_train <- to_categorical(y_train, num_classes)
+
+> y_test <- to_categorical(y_test, num_classes)
+
+> # Define Model --------------------------------------------------------------
+> 
+> model <- keras_model_sequential()
+
+> model %>% 
++   layer_dense(units = FLAGS$dense_units1, activation = 'relu', input_shape = c(784)) %>% 
++   layer_dropout(rate = FLAGS$dropout1) %>%  .... [TRUNCATED] 
