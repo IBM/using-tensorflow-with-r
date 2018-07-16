@@ -1,0 +1,6 @@
+alt:
+  dense_units1: 256
+  epochs: 20
+alt1:
+  dense_units1: 128
+  epochs: 30
