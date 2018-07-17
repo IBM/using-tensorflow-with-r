@@ -5,3 +5,6 @@ rsconnect/*
 .Rproj.user
 R/cats_and_dogs_small/data/*
 R/cats_and_dogs_small/data*
+.RData
+.Rhistory
+
