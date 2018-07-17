@@ -26,7 +26,7 @@ Explore ways of natively visualizing models in R!
  * Visualize layer content and structure
  * Generate heatmaps to see how the convnet learned
 
-# Setup
+# Generate a Heatmap to see how the Convnet Learned
 
 ## Use a 2D Convnent
 
@@ -42,7 +42,22 @@ train_labels <- mnist$train$y
 # TODO show adding a layer from another model 
 ```
 
+# Show what parameters impacted the prediction with LIME
 
+# Visualize Layer and Model Content
+
+## Greta
+
+https://cran.r-project.org/web/packages/greta/vignettes/get_started.html
+
+## Diagrammer
+
+Or Greta
+
+
+## iGraph
+
+I tried and failed :(
 
 
 
