@@ -1,7 +1,6 @@
 ---
 title: 'Visualization: The Plots Thicken'
 author: "Augustina Ragwitz"
-date: "July 12, 2018"
 output: html_document
 params:
   data_folder: "downloads"
@@ -12,128 +11,53 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r includes}
-library(keras)
+
 library(here)
+library(keras)
+library(tidyverse)
+
+library(lime)
 ```
 
-# Setup
+# Mission
 
-## Data
+Explore ways of natively visualizing models in R!
 
-Get the training data (Kaggle cats and dogs images via Deep Learning with R 5.2):
-```{r, eval=FALSE, message=FALSE}
+ * Visualize layer content and structure
+ * Generate heatmaps to see how the convnet learned
 
-system(paste(
-  "wget", "https://storage.googleapis.com/derp-learning-with-r/reproducibility/cats_and_dogs_small.zip", "&", 
-  "mv", "cats_and_dogs_small.zip", here::here(params$data_folder)))
+# Generate a Heatmap to see how the Convnet Learned
 
-system(paste("unzip", "-q", here::here(params$data_folder, "cats_and_dogs_small.zip"), 
-             "-d", here::here(params$data_folder)))
+## Use a 2D Convnent
 
-  
-```
-
-## Model
-
-Let's take a look at how the dimensions of the feature maps change with every successive layer:
-
-For our compilation step, we'll go with the `RMSprop` optimizer as usual. Since we ended our network with a single sigmoid unit, we will use binary crossentropy as our loss (as a reminder, check out the table in Chapter 4, section 5 for a cheatsheet on what loss function to use in various situations).
-
-Our model shold never see the exact same picture twice. This helps the model get exposed to more aspects of the data and generalize better.
-
-In Keras, this can be done by configuring a number of random transformations to be performed on the images read by an `image_data_generator()`.
+Let's use a 2d convnent for MNIST instead of dense layers.
 
 ```{r}
-datagen <- image_data_generator(
-  rescale = 1/255,
-  rotation_range = 40,
-  width_shift_range = 0.2,
-  height_shift_range = 0.2,
-  shear_range = 0.2,
-  zoom_range = 0.2,
-  horizontal_flip = TRUE,
-  fill_mode = "nearest"
-)
+mnist <- dataset_mnist()
+train_images <- mnist$train$x
+train_labels <- mnist$train$y
+
+# TODO improve
+
+# TODO show adding a layer from another model 
 ```
 
-These are just a few of the options available (for more, see the Keras documentation). Let's quickly go over what we just wrote:
+# Show what parameters impacted the prediction with LIME
 
-* `rotation_range` is a value in degrees (0-180), a range within which to randomly rotate pictures.
-* `width_shift` and `height_shift` are ranges (as a fraction of total width or height) within which to randomly translate pictures 
-vertically or horizontally.
-* `shear_range` is for randomly applying shearing transformations.
-* `zoom_range` is for randomly zooming inside pictures.
-* `horizontal_flip` is for randomly flipping half of the images horizontally -- relevant when there are no assumptions of horizontal 
-asymmetry (e.g. real-world pictures).
-* `fill_mode` is the strategy used for filling in newly created pixels, which can appear after a rotation or a width/height shift.
+# Visualize Layer and Model Content
 
-To further fight overfitting, we will also add a dropout layer to our model, right before the densely-connected classifier:
+## Greta
 
-```{r}
-model <- keras_model_sequential() %>% 
-  layer_conv_2d(filters = 32, kernel_size = c(3, 3), activation = "relu",
-                input_shape = c(150, 150, 3)) %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 64, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_conv_2d(filters = 128, kernel_size = c(3, 3), activation = "relu") %>% 
-  layer_max_pooling_2d(pool_size = c(2, 2)) %>% 
-  layer_flatten() %>% 
-  layer_dropout(rate = 0.5) %>% 
-  layer_dense(units = 512, activation = "relu") %>% 
-  layer_dense(units = 1, activation = "sigmoid")  
-```
+https://cran.r-project.org/web/packages/greta/vignettes/get_started.html
 
-```{r}
-summary(model)
-```
+## Diagrammer
 
-```{r}
-model %>% compile(
-  loss = "binary_crossentropy",
-  optimizer = optimizer_rmsprop(lr = 1e-4),
-  metrics = c("acc")
-)
-```
+Or Greta
 
-Train our network using data augmentation and dropout:
 
-```{r}
+## iGraph
 
-test_datagen <- image_data_generator(rescale = 1/255)
-
-train_generator <- flow_images_from_directory(
-  params$data_folder,
-  datagen,
-  target_size = c(150, 150),
-  batch_size = 32,
-  class_mode = "binary"
-)
-
-validation_generator <- flow_images_from_directory(
-  params$data_folder,
-  test_datagen,
-  target_size = c(150, 150),
-  batch_size = 32,
-  class_mode = "binary"
-)
-
-history <- model %>% fit_generator(
-  train_generator,
-  steps_per_epoch = 100,
-  epochs = 100,
-  validation_data = validation_generator,
-  validation_steps = 50
-)
-```
-
-Plot our results:
-
-```{r}
-plot(history)
-```
+I tried and failed :(
 
 
 
