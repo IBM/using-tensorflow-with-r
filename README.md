@@ -30,6 +30,7 @@ Models are written to the models/ folder.
  * R Interface to CloudML (training in the cloud) - https://tensorflow.rstudio.com/tools/cloudml/articles/getting_started.html
  * Run RStudio in the Cloud with IBM Watson Studio - https://ibm.biz/BdYRNi
  * IBM's Model Asset Exchange - https://developer.ibm.com/code/exchanges/models/
+ * Example Shiny App using Keras and LIME! https://jjallaire.shinyapps.io/keras-customer-churn/
 
 
 
