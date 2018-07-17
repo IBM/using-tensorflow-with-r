@@ -47,10 +47,15 @@ train_labels <- mnist$train$y
 # Visualize Layer and Model Content
 
 ## Greta
+Greta is a package to do Bayesian statistics via TensorFlow
+
+https://greta-dev.github.io/greta/
 
 https://cran.r-project.org/web/packages/greta/vignettes/get_started.html
 
 ## Diagrammer
+
+http://rich-iannone.github.io/DiagrammeR/
 
 Or Greta
 
