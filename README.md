@@ -24,3 +24,12 @@ Download large datasets to the downloads/ folder and git will ignore them.
 
 Models are written to the models/ folder.
 
+## Additional Resources
+
+ * Installing RStudio's Tensorflow packages - https://tensorflow.rstudio.com/tensorflow/articles/installation.html
+ * R Interface to CloudML (training in the cloud) - https://tensorflow.rstudio.com/tools/cloudml/articles/getting_started.html
+ * Run RStudio in the Cloud with IBM Watson Studio - https://ibm.biz/BdYRNi
+ * IBM's Model Asset Exchange - https://developer.ibm.com/code/exchanges/models/
+
+
+
