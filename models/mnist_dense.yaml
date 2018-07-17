@@ -17,7 +17,7 @@ config:
       class_name: VarianceScaling
       config: {distribution: uniform, mode: fan_avg, scale: 1.0, seed: null}
     kernel_regularizer: null
-    name: dense_3
+    name: image
     trainable: true
     units: 512
     use_bias: true
@@ -35,7 +35,7 @@ config:
       class_name: VarianceScaling
       config: {distribution: uniform, mode: fan_avg, scale: 1.0, seed: null}
     kernel_regularizer: null
-    name: dense_4
+    name: prediction
     trainable: true
     units: 10
     use_bias: true

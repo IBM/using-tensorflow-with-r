@@ -1,6 +1,6 @@
 ---
 title: "Hello, keras"
-output: html
+output: html_document
 ---
 
 # Library
@@ -310,14 +310,13 @@ model
 
 To see a layer, we can call it by name.
 
-```{r eval=FALSE}
-# replace the "" with the name of one of the layers printed in the previous step
+```{r, eval=FALSE}
 get_layer(model, name="image")
 ```
 
 We can also get the weights.
 
-```{r}
+```{r, eval=FALSE}
 get_weights(model)
 ```
 
