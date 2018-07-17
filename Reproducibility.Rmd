@@ -22,16 +22,6 @@ library(tfdeploy)
 
 ```
 
-```{r}
-# For plotting
-# source("https://bioconductor.org/biocLite.R")
-# biocLite("Rgraphviz")
-
-library(Rgraphviz)
-library(tidygraph)
-library(igraph)
-```
-
 # Overview
 
 Using tfdeploy to serialize your model after training provides transparency into how your model was created and lets others not only reproduce your work but potentially improve it.
@@ -41,7 +31,7 @@ Using tfdeploy to serialize your model after training provides transparency into
 In the previous example, [hello-keras](hello-keras.html), we trained a model to recognize handwriting. We saved this model and its weights in hdf5 format.
 
 ```{r}
-model_dense <- load_model_hdf5("models/mnist_hdf5.h5")
+model_dense <- load_model_hdf5("models/mnist_dense_hdf5.h5")
 ```
 
 You can also read in model weights. Weights are loaded based on the model's architecture, so it should be the same as when the weights were saved. 
@@ -49,7 +39,7 @@ You can also read in model weights. Weights are loaded based on the model's arch
 Note that layers that don't have weights are not taken into account, so adding or removing layers is fine as long as they don't have weights. Also note that if the by_name parameter is TRUE, weights are loaded into layers only if they share the same name. This is useful for fine-tuning or transfer-learning models where some of the layers have changed. We'll talk about naming layers later.
 
 ```{r}
-load_model_weights_hdf5(model_dense, "models/mnist_weights_hdf5.h5")
+load_model_weights_hdf5(model_dense, "models/mnist_dense_weights_hdf5.h5")
 ```
 
 # Improve the Model
@@ -57,17 +47,21 @@ load_model_weights_hdf5(model_dense, "models/mnist_weights_hdf5.h5")
 Let's use a 2d convnent instead of dense layers.
 
 ```{r}
+mnist <- dataset_mnist()
+train_images <- mnist$train$x
+train_labels <- mnist$train$y
 
+# TODO improve
+
+# TODO show adding a layer from another model 
 ```
-
-
 
 # Export the Model
 
 The next step is to export the model as a TensorFlow SavedModel using the export_savedmodel() function:
 
 ```{r}
-export_savedmodel(model, "models/savedmodel")
+export_savedmodel(model_dense, "models/savedmodel")
 ```
 
 Note the message that is printed: exporting a Keras model requires setting the Keras “learning phase” to 0. In practice, this means that after calling export_savedmodel you can not continue to train models in the same R session.
@@ -98,13 +92,32 @@ view_savedmodel("models/savedmodel")
 
 Use serve_savedmodel() to host the model locally. Once running, make an HTTP POST request:
 
-```{r eval=FALSE}
-curl_cmd <- 'curl -X POST "http://127.0.0.1:8089/predict/predict/" \ 
-  -H "accept: application/json"                       \
-  -H "Content-Type: application/json"                 \
-  -d "{ \"instances\": [ { \"disp\": [ 160 ], \"cyl\": [ 4 ] } ]}"'
+Note this will take over your whole process, so you don't want to do this here.
 
-model_req <- GET("http://127.0.0.1:8089/predict/predict/") # req <- GET(req_url, query, accept(accept_text))
+```{r}
+serve_savedmodel("models/savedmodel", daemonized=TRUE)
+```
+
+```{r}
+# grab a random index from the "batch" index (the first axis)
+digit_index <- sample.int(length(train_images[1,,]), 1) 
+digit <- train_images[digit_index,,] # <- one slice of tensor please :)
+
+digit_raw <- base64enc::base64encode(digit)
+
+plot(as.raster(digit, max=255))
+```
+
+This will use the same syntax as the [CloudML Predict Request API](https://cloud.google.com/ml-engine/docs/v1/predict-request)
+
+```{r eval=FALSE}
+
+model_req_body <- paste('{"instances": [{"dense_3_input":{"', digit_raw, '"}]}')
+
+model_req <- POST("http://127.0.0.1:8089/serving_default/predict/",
+                  encode="json",
+                  body=model_req_body)
+
 ```
 
 Each instance of new data should be formatted as a json array, and each element in the array should be a named array corresponding to the feature columns. This structure is similar to a named list in R.
@@ -116,19 +129,6 @@ model_json <- content(model_req, as = "text")
 # rectangularize
  model_df <- fromJSON(json, flatten=TRUE)
 ```
-
-
-The response is the predicted MPG:
-
-{
-  "predictions": [
-    {
-      "predictions": [
-        8.4974
-      ]
-    }
-  ]
-}
 
 
 # Using Saved Models
