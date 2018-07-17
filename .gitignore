@@ -3,4 +3,5 @@ rsconnect/*
 */.DS_Store
 .DS_Store
 .Rproj.user
+R/cats_and_dogs_small/data/*
 
