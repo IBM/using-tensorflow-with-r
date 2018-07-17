@@ -346,7 +346,7 @@ There are many ways to save your model. It's usually a good idea to save it afte
 You can save it in human-readable form using either YAML or JSON.
 
 ```{r}
-write(model_to_yaml(model), "models/mnist.yaml")
+write(model_to_yaml(model), "models/mnist_dense.yaml")
 ```
 
 The human-readable options for serializing the models don't include all of the information. The serialize_model command actually calls the Keras Python library to get the data that is not immediately available within the R objects.
@@ -354,15 +354,15 @@ The human-readable options for serializing the models don't include all of the i
 All options are not included by default, however, such as the optimizer. You need to explicitely indicate what additional attributes you want included. When might this be useful?
 
 ```{r}
-cmp_model <- model
-write(serialize_model(cmp_model), "models/mnist_cmp.txt")
+raw_model <- model
+write(serialize_model(raw_model), "models/mnist_raw.txt")
 ```
 
 You can also explicitely save it as HDF5
 
 ```{r, eval=FALSE}
-save_model_hdf5(model, filepath = "models/mnist_hdf5.h5")
-save_model_weights_hdf5(model, filepath="models/mnist_weights_hdf5.h5")
+save_model_hdf5(model, filepath = "models/mnist_dense_hdf5.h5")
+save_model_weights_hdf5(model, filepath="models/mnist_dense_weights_hdf5.h5")
 ```
 
 The next section, Reproducibility, shows how to export your model as a TensorFlow SavedModel for deployment.
@@ -492,6 +492,7 @@ We were able to successfully recognize single digits from handwriting!
  * [Machine Learning for Humans](https://medium.com/machine-learning-for-humans/why-machine-learning-matters-6164faf1df12)
  * [Tensorflow Tools for R by RStudio](https://tensorflow.rstudio.com/)
  * [DataCamp] <- TODO - add the link to Gabi and Erin's ML course
+ * Linear Algebra Fast.ai
 
 
 
