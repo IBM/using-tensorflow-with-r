@@ -111,17 +111,12 @@ plot(as.raster(digit, max=255))
 This will use the same syntax as the [CloudML Predict Request API](https://cloud.google.com/ml-engine/docs/v1/predict-request)
 
 ```{r eval=FALSE}
-curl_cmd <- 'curl -X POST "http://127.0.0.1:8089/predict/predict/" \ 
-  -H "accept: application/json"                       \
-  -H "Content-Type: application/json"                 \
-  -d "{ \"instances\": [ { \"disp\": [ 160 ], \"cyl\": [ 4 ] } ]}"'
 
-model_req_body <- paste('{"instances": [{"dense_3_input":', digit, '}')
+model_req_body <- paste('{"instances": [{"dense_3_input":{"', digit_raw, '"}]}')
 
 model_req <- POST("http://127.0.0.1:8089/serving_default/predict/",
                   encode="json",
                   body=model_req_body)
-# req <- GET(req_url, query, accept(accept_text))
 
 ```
 

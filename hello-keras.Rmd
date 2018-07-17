@@ -156,8 +156,9 @@ Here's the first bit of code to set up our model.
 
 ```{r}
 model <- keras_model_sequential() %>% # initialize our model using a pre-baked model type (thanks R keras!)
-  layer_dense(units = 512, activation = "relu", input_shape = c(28 * 28)) %>% # define our first layer transformation
-  layer_dense(units = 10, activation = "softmax") # define the final layer transformation
+  layer_dense(units = 512, activation = "relu", input_shape = c(28 * 28), 
+              name="image") %>% # define our first layer transformation
+  layer_dense(units = 10, activation = "softmax", name="prediction") # define the final layer transformation
 ```
 
 ## keras_model_sequential
@@ -311,7 +312,7 @@ To see a layer, we can call it by name.
 
 ```{r eval=FALSE}
 # replace the "" with the name of one of the layers printed in the previous step
-get_layer(model, name="dense_31")
+get_layer(model, name="image")
 ```
 
 We can also get the weights.
