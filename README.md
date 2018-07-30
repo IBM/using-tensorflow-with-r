@@ -20,9 +20,9 @@ Visualize.Rmd is a playground for leveraging R's data visualization methods for 
 
 ## How to Use
 
-Download large datasets to the downloads/ folder and git will ignore them.
+Download large datasets to the `downloads/` folder and git will ignore them.
 
-Models are written to the models/ folder.
+Models are written to the `models/` folder.
 
 ## Additional Resources
 
