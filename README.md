@@ -1,4 +1,4 @@
-# R and Tensorflow!
+# R and Tensorflow
 
 ## Why Use R with Tensorflow?
 
